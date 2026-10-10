@@ -100,26 +100,49 @@ class OpenAIAPI:
 
 
 class QwenAPI(OpenAIAPI):
-    """Text/image client for the local Qwen vLLM server."""
+    """Text/image client for cloud Qwen3-VL Plus and local Qwen vLLM."""
 
     def __init__(self, model: str):
         self.model = model
         key = os.environ.get("QWEN_API_KEY") or api_keys.get("qwen_api_key")
         if not key:
             raise ValueError("Set QWEN_API_KEY or qwen_api_key in config/api_keys.local.yaml")
-        base_url = os.environ.get("QWEN_BASE_URL", "http://10.128.202.100:3010/v1").rstrip("/")
-        self.client = OpenAI(api_key=key, base_url=base_url, timeout=120.0,
-                             http_client=httpx.Client(trust_env=False))
-        self.tokenize_url = base_url.removesuffix("/v1") + "/tokenize"
-        self.tokenize_session = requests.Session()
-        self.tokenize_session.trust_env = False
-        self.tokenize_session.headers.update({"Authorization": f"Bearer {key}"})
+
+        self.is_cloud = model == "qwen3-vl-plus"
+        if self.is_cloud:
+            # DashScope uses OpenAI-compatible chat completions, but has no /tokenize.
+            base_url = os.environ.get(
+                "QWEN_CLOUD_BASE_URL",
+                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            ).rstrip("/")
+            self.client = OpenAI(api_key=key, base_url=base_url, timeout=120.0)
+            self._encoding = tiktoken.get_encoding("cl100k_base")
+        else:
+            # Keep the local vLLM server and its accurate /tokenize endpoint intact.
+            base_url = os.environ.get("QWEN_BASE_URL", "http://10.128.202.100:3010/v1").rstrip("/")
+            self.client = OpenAI(api_key=key, base_url=base_url, timeout=120.0,
+                                 http_client=httpx.Client(trust_env=False))
+            self.tokenize_url = base_url.removesuffix("/v1") + "/tokenize"
+            self.tokenize_session = requests.Session()
+            self.tokenize_session.trust_env = False
+            self.tokenize_session.headers.update({"Authorization": f"Bearer {key}"})
 
     def count_tokens(self, prompt: Prompt | str, system_prompt: str = None) -> int:
+        if isinstance(prompt, Prompt) and (prompt.has_videos() or prompt.has_audios()):
+            raise ValueError("The DEFAME Qwen adapter supports text and images only.")
+
+        if self.is_cloud:
+            # Approximation for local bookkeeping, NOT official Qwen token usage.
+            # Image tokenization varies with resolution and server preprocessing.
+            count = len(self._encoding.encode(str(prompt)))
+            if system_prompt:
+                count += len(self._encoding.encode(system_prompt))
+            if isinstance(prompt, Prompt):
+                count += 2048 * len(prompt.images)
+            return count
+
         body = {"model": self.model}
         if isinstance(prompt, Prompt):
-            if prompt.has_videos() or prompt.has_audios():
-                raise ValueError("The DEFAME Qwen adapter supports text and images only.")
             messages = []
             if system_prompt:
                 messages.append({"role": "system", "content": system_prompt})
@@ -404,7 +427,7 @@ class DeepSeekModel(Model):
 
 
 class QwenModel(Model):
-    """API-backed Qwen; token counts use the deployed server's tokenizer."""
+    """Qwen via local vLLM or cloud API; cloud token counts are approximate."""
     open_source = True
     accepts_images = True
     accepts_videos = False
@@ -419,9 +442,13 @@ class QwenModel(Model):
         available_tokens = self.context_window - prompt_tokens
         if available_tokens <= 0:
             raise ValueError(f"Qwen prompt has {prompt_tokens} tokens; context limit is {self.context_window}.")
+        extra_body = {"top_k": top_k, "repetition_penalty": self.repetition_penalty}
+        if self.api.is_cloud:
+            # The cloud model returns a parsable answer in non-thinking mode.
+            extra_body["enable_thinking"] = False
         return self.api(prompt, system_prompt=system_prompt, temperature=temperature,
                         top_p=top_p, max_tokens=min(self.max_response_len, available_tokens),
-                        extra_body={"top_k": top_k, "repetition_penalty": self.repetition_penalty})
+                        extra_body=extra_body)
 
     def count_tokens(self, prompt: Prompt | str) -> int:
         return self.api.count_tokens(prompt)
