@@ -110,10 +110,10 @@ class QwenAPI(OpenAIAPI):
 
         self.is_cloud = model == "qwen3-vl-plus"
         if self.is_cloud:
-            # DashScope uses OpenAI-compatible chat completions, but has no /tokenize.
+            # The cloud endpoint is OpenAI-compatible but has no /tokenize endpoint.
             base_url = os.environ.get(
                 "QWEN_CLOUD_BASE_URL",
-                "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "http://10.128.202.100:3010/v1",
             ).rstrip("/")
             self.client = OpenAI(api_key=key, base_url=base_url, timeout=120.0)
             self._encoding = tiktoken.get_encoding("cl100k_base")
