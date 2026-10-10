@@ -23,3 +23,4 @@ llama32_90b,HUGGINGFACE,meta-llama/Llama-3.2-90B-Vision-Instruct,128_000,0,0
 llama4_scout,HUGGINGFACE,meta-llama/Llama-4-Scout-17B-16E-Instruct,10_000_000,0,0
 deepseek,DEEPSEEK,deepseek-chat,64_000,0.14,0.28
 qwen3_vl_8b,QWEN,qwen3-vl-8b,262144,0,0
+qwen3_vl_plus,QWEN,qwen3-vl-plus,262144,0,0

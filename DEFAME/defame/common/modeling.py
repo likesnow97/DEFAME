@@ -107,7 +107,7 @@ class QwenAPI(OpenAIAPI):
         key = os.environ.get("QWEN_API_KEY") or api_keys.get("qwen_api_key")
         if not key:
             raise ValueError("Set QWEN_API_KEY or qwen_api_key in config/api_keys.local.yaml")
-        base_url = os.environ.get("QWEN_BASE_URL", "http://127.0.0.1:8765/v1").rstrip("/")
+        base_url = os.environ.get("QWEN_BASE_URL", "http://10.128.202.100:3010/v1").rstrip("/")
         self.client = OpenAI(api_key=key, base_url=base_url, timeout=120.0,
                              http_client=httpx.Client(trust_env=False))
         self.tokenize_url = base_url.removesuffix("/v1") + "/tokenize"

@@ -11,10 +11,10 @@ from defame.common import Image
 from defame.fact_checker import FactChecker
 
 
-fact_checker = FactChecker(llm="qwen3_vl_8b", use_geolocator=False)
+fact_checker = FactChecker(llm="qwen3_vl_plus", use_geolocator=False)
 claim = [
     "许家印2026年10月无期徒刑被减刑了吗.",
-    Image("/data/snow/Apaper/DEFAME/in/example/xjy.png"),
+    Image("/nfs/users/zhoujie/DEFAME/DEFAME/in/example/xjy.png"),
     ]
 report, _ = fact_checker.verify_claim(claim)
 report.save_to("out/fact-check")
